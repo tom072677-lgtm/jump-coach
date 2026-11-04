@@ -166,6 +166,63 @@
       }catch(e){polling.delete(rid);notice('상태를 확인하지 못했습니다. 기록 모아보기에서 다시 열어 주세요.',true);}
     };tick();
   }
+  const RECORD_TREND_WINDOW = 10;
+  const RECORD_TREND_SLOPE_UP = 0.3;
+  const RECORD_TREND_SLOPE_DOWN = -0.3;
+  const RECORD_GROUP_COLORS = ['var(--accent)','var(--accent2)','#e0a84b','#c77dff','#ff9c9c'];
+  function recordTrend(values){
+    if(values.length<2) return {kind:'hold',text:'기록이 2개 이상 쌓이면 추세를 분석합니다.'};
+    const recent=values.slice(-RECORD_TREND_WINDOW), n=recent.length;
+    const meanX=(n-1)/2, meanY=recent.reduce((a,b)=>a+b,0)/n;
+    let num=0,den=0;
+    recent.forEach((v,i)=>{num+=(i-meanX)*(v-meanY);den+=(i-meanX)**2;});
+    const slope=den?num/den:0, change=slope*(n-1);
+    const kind=slope>=RECORD_TREND_SLOPE_UP?'up':slope<=RECORD_TREND_SLOPE_DOWN?'down':'flat';
+    const emoji=kind==='up'?'📈':kind==='down'?'📉':'➡️';
+    const label=kind==='up'?'성장기':kind==='down'?'하락세':'정체기';
+    const sign=change>=0?'+':'';
+    return {kind,text:`${emoji} ${label}`,detail:`최근 ${n}회 ${sign}${change.toFixed(1)}cm`};
+  }
+  function recordChart(points){
+    if(!points||!points.length) return '<p class="empty">아직 비교할 기록이 없습니다.</p>';
+    const rows=[...points].sort((a,b)=>a.date.localeCompare(b.date)||(a.attempt_no-b.attempt_no));
+    const values=rows.map(p=>p.value);
+    const w=Math.max(260,Math.min(760,document.documentElement.clientWidth-80)),h=240,left=55,right=58,top=25,bottom=45;
+    let low=Math.min(...values),high=Math.max(...values);
+    const mean=values.reduce((a,b)=>a+b,0)/values.length;
+    let maxIdx=0,minIdx=0;
+    values.forEach((v,i)=>{if(v>values[maxIdx])maxIdx=i;if(v<values[minIdx])minIdx=i;});
+    const margin=Math.max((high-low)*.2,1);low-=margin;high+=margin;
+    const span=high-low||1;
+    const x=i=>left+(rows.length<2?(w-left-right)/2:i*(w-left-right)/(rows.length-1));
+    const y=v=>h-bottom-(v-low)/span*(h-top-bottom);
+    const groups=[...new Set(rows.map(p=>p.group))];
+    let svg=`<svg class="chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="시간순 실측 기록 그래프">`;
+    for(let i=0;i<4;i++){const v=low+span*i/3;svg+=`<line class="chart-grid" x1="${left}" x2="${w-right}" y1="${y(v)}" y2="${y(v)}"/><text class="chart-label" x="${left-8}" y="${y(v)+4}" text-anchor="end">${v.toFixed(1)}</text>`;}
+    for(const ref of [{v:mean,cls:'chart-ref-mean',tag:'평균'},{v:values[maxIdx],cls:'chart-ref-max',tag:'최고'},{v:values[minIdx],cls:'chart-ref-min',tag:'최저'}])
+      svg+=`<line class="chart-ref ${ref.cls}" x1="${left}" x2="${w-right}" y1="${y(ref.v)}" y2="${y(ref.v)}"/><text class="chart-ref-label ${ref.cls}" x="${w-right+4}" y="${y(ref.v)+4}" text-anchor="start">${ref.tag} ${ref.v.toFixed(1)}</text>`;
+    groups.forEach(g=>{
+      const color=RECORD_GROUP_COLORS[groups.indexOf(g)%RECORD_GROUP_COLORS.length];
+      const pts=rows.map((p,i)=>({p,i})).filter(o=>o.p.group===g);
+      if(pts.length>1)svg+=`<polyline class="chart-line" style="stroke:${color}" points="${pts.map(o=>`${x(o.i)},${y(o.p.value)}`).join(' ')}"/>`;
+    });
+    rows.forEach((p,i)=>{
+      const color=RECORD_GROUP_COLORS[groups.indexOf(p.group)%RECORD_GROUP_COLORS.length];
+      svg+=`<circle class="chart-point" style="fill:${color}" cx="${x(i)}" cy="${y(p.value)}" r="4"><title>${esc(p.date)} · ${p.attempt_no}번째 · ${p.value.toFixed(1)}cm</title></circle>`;
+    });
+    const labels=w<400?4:8;
+    rows.forEach((p,i)=>{if(rows.length<=labels||i%Math.ceil(rows.length/labels)===0)svg+=`<text class="chart-label" x="${x(i)}" y="${h-14}" text-anchor="middle">${p.date.slice(5)}</text>`;});
+    svg+='</svg>';
+    const trend=recordTrend(values);
+    const badge=`<span class="trend-badge trend-${trend.kind}">${esc(trend.text)}${trend.detail?` <small>${esc(trend.detail)}</small>`:''}</span>`;
+    const summary=`<div class="record-summary">`+
+      `<div>평균<strong>${mean.toFixed(1)} cm</strong></div>`+
+      `<div>최고<strong>${values[maxIdx].toFixed(1)} cm</strong><small>${esc(rows[maxIdx].date)}</small></div>`+
+      `<div>최저<strong>${values[minIdx].toFixed(1)} cm</strong><small>${esc(rows[minIdx].date)}</small></div>`+
+      `<div>기록 수<strong>${rows.length}개</strong></div></div>`;
+    const legend=groups.length>1?`<div class="chart-legend">`+groups.map(g=>`<span><i style="background:${RECORD_GROUP_COLORS[groups.indexOf(g)%RECORD_GROUP_COLORS.length]}"></i>${esc(g||'기본')}</span>`).join('')+`</div>`:'';
+    return `<div class="record-head">${badge}</div>`+summary+legend+svg;
+  }
   function chart(points,unit,showBest=false){
     if(!points.length) return '<p class="empty">아직 비교할 기록이 없습니다.</p>';
     const dates=[...new Set(points.map(p=>p.date))].sort(), w=Math.max(260,Math.min(760,document.documentElement.clientWidth-80)),h=240,left=55,right=15,top=25,bottom=45;
@@ -187,7 +244,7 @@
     const h=(await api(`/api/athletes/${owner}/history`)).history;if(owner!==person()||request!==historyRequest)return;history=h;
     const best=h.record_points.length?Math.max(...h.record_points.map(p=>p.value))+' cm':'—';
     $('historySummary').innerHTML=`<div class="summary-grid"><div>최고 실측 기록<strong>${best}</strong></div><div>저장된 시도<strong>${h.counts.attempts}회</strong></div><div>기록 있는 훈련일<strong>${h.counts.days}일</strong></div></div>`;
-    $('recordChart').innerHTML=chart(h.record_dates,'cm',true)+h.record_summaries.map(s=>`<p class="insight">${esc(s.text)}</p>`).join('');
+    $('recordChart').innerHTML=recordChart(h.record_points)+h.record_summaries.map(s=>`<p class="insight">${esc(s.text)}</p>`).join('');
     const old=$('metricSelect').value;
     const available=Object.entries(h.metrics).filter(([k,m])=>m.points.length);
     $('metricSelect').innerHTML=available.length?available.map(([k,m])=>`<option value="${k}">${esc(m.label)}</option>`).join(''):'<option value="">비교 가능한 지표 없음</option>';
@@ -209,7 +266,7 @@
       `<details class="data"><summary>포함된 자료 ${m.points.length}개</summary><p class="hint">같은 촬영·분석 조건끼리 연결했습니다. 제외된 분석 ${m.excluded}개.</p></details>`;
   }
   $('metricSelect').addEventListener('change',metricChart);
-  window.addEventListener('resize',()=>{if(history){$('recordChart').innerHTML=chart(history.record_dates,'cm',true)+history.record_summaries.map(s=>`<p class="insight">${esc(s.text)}</p>`).join('');metricChart();}});
+  window.addEventListener('resize',()=>{if(history){$('recordChart').innerHTML=recordChart(history.record_points)+history.record_summaries.map(s=>`<p class="insight">${esc(s.text)}</p>`).join('');metricChart();}});
   $('attemptList').addEventListener('change',e=>{const id=e.target.dataset.select;if(id){e.target.checked?selected.add(id):selected.delete(id);$('compareSaved').disabled=selected.size<2||selected.size>5;}});
   $('attemptList').addEventListener('click',async e=>{
     const remove=e.target.closest('[data-delete]');
