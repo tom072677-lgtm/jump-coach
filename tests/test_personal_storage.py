@@ -139,6 +139,35 @@ def test_wrong_source_correction_is_atomic_and_does_not_double_count(tmp_path):
     assert len(h['record_points']) == 1
 
 
+def test_record_points_are_enriched_and_sorted_chronologically(tmp_path):
+    from history import build_history
+    store = make_store(tmp_path)
+    person = store.save_athlete('선수')
+    # Three attempts on 11-04 and two on 11-02, created out of chronological order.
+    plan = [
+        ('2026-11-04', '240'),
+        ('2026-11-02', '230'),
+        ('2026-11-04', '250'),
+        ('2026-11-02', '235'),
+        ('2026-11-04', '245'),
+    ]
+    for i, (day, distance) in enumerate(plan):
+        store.create_attempt(person['id'], day, f'rec{i}', measured_distance_cm=distance)
+    points = build_history(store, person['id'])['record_points']
+    # (a) every record carries an integer attempt_no
+    assert all(isinstance(p['attempt_no'], int) for p in points)
+    # (b) sorted ascending by (date, attempt_no)
+    keys = [(p['date'], p['attempt_no']) for p in points]
+    assert keys == sorted(keys)
+    # (c) same-day attempts remain separate entries (not collapsed into one)
+    assert len(points) == 5
+    day_04 = [p for p in points if p['date'] == '2026-11-04']
+    assert len(day_04) == 3
+    assert len({p['attempt_no'] for p in day_04}) == 3
+    # the first entry is the earliest day, not the DESC order returned by list_attempts
+    assert points[0]['date'] == '2026-11-02'
+
+
 def test_failed_same_settings_rerun_preserves_confirmed_result(tmp_path):
     store = make_store(tmp_path)
     a = new_attempt(store)

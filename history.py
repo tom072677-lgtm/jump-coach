@@ -44,7 +44,8 @@ def build_history(store, athlete_id):
         group = a['measurement_context'].get('setup') or '미확인'
         record_days[group].add(a['performed_on'])
         if a['validity'] == 'valid' and a['measured_distance_cm'] is not None:
-            records.append({'date': a['performed_on'], 'group': group, 'value': a['measured_distance_cm'], 'attempt_id': a['id']})
+            records.append({'date': a['performed_on'], 'group': group, 'value': a['measured_distance_cm'],
+                            'attempt_id': a['id'], 'attempt_no': a['attempt_no']})
         selected = a['selected_run']
         if not selected or not selected.get('result'):
             continue
@@ -59,6 +60,8 @@ def build_history(store, athlete_id):
                                           'record_revision': a['revision'], 'record_cm': a['measured_distance_cm']})
             else:
                 excluded[key] += 1
+    # store.list_attempts() returns DESC order; the timeline needs ascending (date, attempt_no).
+    records.sort(key=lambda r: (r['date'], r['attempt_no']))
     record_dates = date_summary(records)
     metrics = {}
     for key, (label, unit) in METRICS.items():
