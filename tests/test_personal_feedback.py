@@ -161,6 +161,49 @@ def test_record_edits_do_not_change_observed_motion_differences():
     assert first['rows'] == second['rows']
 
 
+def _takeoff_rows(speed_diff, angle_diff, angle_small):
+    """highlights()가 쓰는 도약 행 세트를 직접 구성한다."""
+    return [
+        {'key': 'takeoff_speed_mps', 'label': '도약 속도', 'phase': 'takeoff', 'unit': 'm/s',
+         'before': 3.47, 'after': 3.47 + speed_diff, 'difference': speed_diff,
+         'small': abs(speed_diff) <= .15 + 1e-6},
+        {'key': 'takeoff_angle_deg', 'label': '도약 각도', 'phase': 'takeoff', 'unit': '°',
+         'before': 25., 'after': 25. + angle_diff, 'difference': angle_diff, 'small': angle_small},
+        {'key': 'flight_time_s', 'label': '체공 시간', 'phase': 'takeoff', 'unit': 's',
+         'before': .5, 'after': .567, 'difference': .067, 'small': False},
+    ]
+
+
+def test_slower_speed_but_bigger_angle_and_higher_record_tells_to_raise_angle_and_speed():
+    rows = _takeoff_rows(speed_diff=-.18, angle_diff=3.6, angle_small=False)
+    result = module().highlights(rows, record_difference=14)
+    takeoff = next(x for x in result if x['phase'] == 'takeoff')
+    assert takeoff['action'] == ('도약 속도는 줄었지만 도약 각도를 크게 하여 체공시간을 확보하였습니다. '
+                                 '도약 각도를 30도 수준으로 올리면서 도약 속도를 늘려보세요.')
+
+
+def test_slower_speed_higher_record_but_flat_angle_keeps_existing_action():
+    rows = _takeoff_rows(speed_diff=-.18, angle_diff=0.1, angle_small=True)
+    result = module().highlights(rows, record_difference=14)
+    takeoff = next(x for x in result if x['phase'] == 'takeoff')
+    assert takeoff['action'] == '이번 밀어내기 동작을 다시 재현해 속도와 기록이 함께 유지되는지 확인하세요.'
+
+
+def test_faster_speed_and_higher_record_keeps_existing_reproduce_action():
+    rows = _takeoff_rows(speed_diff=.2, angle_diff=3.6, angle_small=False)
+    result = module().highlights(rows, record_difference=14)
+    takeoff = next(x for x in result if x['phase'] == 'takeoff')
+    assert takeoff['action'] == '이번 밀어내기 동작을 다시 재현해 속도와 기록이 함께 유지되는지 확인하세요.'
+
+
+def test_slower_speed_with_lower_record_keeps_existing_push_action():
+    rows = _takeoff_rows(speed_diff=-.18, angle_diff=3.6, angle_small=False)
+    result = module().highlights(rows, record_difference=-14)
+    takeoff = next(x for x in result if x['phase'] == 'takeoff')
+    assert takeoff['action'] == ('하강에서 발이 떨어질 때까지 밀어내는 동작을 이어가며, '
+                                 '다음 시도의 속도와 기록이 함께 바뀌는지 확인하세요.')
+
+
 def test_more_speed_with_a_lower_record_is_not_automatically_praised():
     low, high = pair()
     low['selected_run']['result']['observations']['takeoff_speed_mps']['value'] = 4
