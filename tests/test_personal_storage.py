@@ -139,6 +139,56 @@ def test_wrong_source_correction_is_atomic_and_does_not_double_count(tmp_path):
     assert len(h['record_points']) == 1
 
 
+def test_record_points_are_enriched_and_sorted_by_created_at(tmp_path):
+    from history import build_history
+    store = make_store(tmp_path)
+    person = store.save_athlete('선수')
+    # Three attempts on 11-04 and two on 11-02, created out of chronological order.
+    plan = [
+        ('2026-11-04', '240'),
+        ('2026-11-02', '230'),
+        ('2026-11-04', '250'),
+        ('2026-11-02', '235'),
+        ('2026-11-04', '245'),
+    ]
+    attempt_ids = []
+    for i, (day, distance) in enumerate(plan):
+        attempt_ids.append(store.create_attempt(person['id'], day, f'rec{i}', measured_distance_cm=distance)['id'])
+    # Stamp created_at so that, within 11-04, the order in which analyses were run is the REVERSE
+    # of attempt_no. now() has second resolution, so set these explicitly to get distinct times.
+    # 11-04 attempts (attempt_no 1,2,3 -> plan indices 0,2,4) are run at 09:00, 08:00, 07:00:
+    # the earliest-run one (07:00) is the highest attempt_no, so created_at order != attempt_no order.
+    stamps = {
+        attempt_ids[1]: '2026-11-02T06:00:00+00:00',  # 11-02 attempt_no 1
+        attempt_ids[3]: '2026-11-02T06:30:00+00:00',  # 11-02 attempt_no 2
+        attempt_ids[4]: '2026-11-04T07:00:00+00:00',  # 11-04 attempt_no 3 (run first)
+        attempt_ids[2]: '2026-11-04T08:00:00+00:00',  # 11-04 attempt_no 2
+        attempt_ids[0]: '2026-11-04T09:00:00+00:00',  # 11-04 attempt_no 1 (run last)
+    }
+    with store.transaction() as db:
+        for aid, stamp in stamps.items():
+            db.execute('UPDATE attempts SET created_at=? WHERE id=?', (stamp, aid))
+    points = build_history(store, person['id'])['record_points']
+    # (a) every record carries an integer attempt_no and a created_at string
+    assert all(isinstance(p['attempt_no'], int) for p in points)
+    assert all(isinstance(p['created_at'], str) and p['created_at'] for p in points)
+    # (b) sorted ascending by created_at (the time the record was saved/analyzed)
+    created = [p['created_at'] for p in points]
+    assert created == sorted(created)
+    # (c) same-day attempts remain separate entries (not collapsed into one)
+    assert len(points) == 5
+    day_04 = [p for p in points if p['date'] == '2026-11-04']
+    assert len(day_04) == 3
+    assert len({p['attempt_no'] for p in day_04}) == 3
+    # the first entry is the earliest run (11-02), not the DESC order returned by list_attempts
+    assert points[0]['date'] == '2026-11-02'
+    assert points[0]['attempt_id'] == attempt_ids[1]
+    # Within 11-04 the earliest created_at comes first even though it is the HIGHEST attempt_no,
+    # so a revert to (date, attempt_no) sorting would fail this: the run order wins over attempt_no.
+    day_04_attempt_no = [p['attempt_no'] for p in day_04]
+    assert day_04_attempt_no == [3, 2, 1]
+
+
 def test_failed_same_settings_rerun_preserves_confirmed_result(tmp_path):
     store = make_store(tmp_path)
     a = new_attempt(store)
