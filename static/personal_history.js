@@ -170,6 +170,16 @@
   const RECORD_TREND_SLOPE_UP = 0.3;
   const RECORD_TREND_SLOPE_DOWN = -0.3;
   const RECORD_GROUP_COLORS = ['var(--accent)','var(--accent2)','#e0a84b','#c77dff','#ff9c9c'];
+  function recordStamp(p){
+    if(p.created_at){
+      const date=new Date(p.created_at);
+      if(Number.isFinite(date.getTime())){
+        const pad=n=>String(n).padStart(2,'0');
+        return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+      }
+    }
+    return `${p.date} · ${p.attempt_no}번째`;
+  }
   function recordTrend(values){
     if(values.length<2) return {kind:'hold',text:'기록이 2개 이상 쌓이면 추세를 분석합니다.'};
     const recent=values.slice(-RECORD_TREND_WINDOW), n=recent.length;
@@ -185,7 +195,7 @@
   }
   function recordChart(points){
     if(!points||!points.length) return '<p class="empty">아직 비교할 기록이 없습니다.</p>';
-    const rows=[...points].sort((a,b)=>a.date.localeCompare(b.date)||(a.attempt_no-b.attempt_no));
+    const rows=[...points].sort((a,b)=>(a.created_at||'').localeCompare(b.created_at||'')||a.date.localeCompare(b.date)||(a.attempt_no-b.attempt_no));
     const values=rows.map(p=>p.value);
     const w=Math.max(260,Math.min(760,document.documentElement.clientWidth-80)),h=240,left=55,right=58,top=25,bottom=45;
     let low=Math.min(...values),high=Math.max(...values);
@@ -208,7 +218,7 @@
     });
     rows.forEach((p,i)=>{
       const color=RECORD_GROUP_COLORS[groups.indexOf(p.group)%RECORD_GROUP_COLORS.length];
-      svg+=`<circle class="chart-point" style="fill:${color}" cx="${x(i)}" cy="${y(p.value)}" r="4"><title>${esc(p.date)} · ${p.attempt_no}번째 · ${p.value.toFixed(1)}cm</title></circle>`;
+      svg+=`<circle class="chart-point" style="fill:${color}" cx="${x(i)}" cy="${y(p.value)}" r="4"><title>${esc(recordStamp(p))} · ${p.value.toFixed(1)}cm</title></circle>`;
     });
     const labels=w<400?4:8;
     rows.forEach((p,i)=>{if(rows.length<=labels||i%Math.ceil(rows.length/labels)===0)svg+=`<text class="chart-label" x="${x(i)}" y="${h-14}" text-anchor="middle">${p.date.slice(5)}</text>`;});
