@@ -96,13 +96,12 @@ def highlights(rows, record_difference):
         if flight and flight['small'] and abs(flight['difference']) > 1e-6:
             text += ' 체공 시간은 한 프레임 안팎의 차이입니다.'
         if speed and not speed['small']:
-            if record_difference is not None and record_difference < 0:
+            if speed['difference'] < 0 and angle and not angle.get('small') and angle['difference'] > 0:
+                action = '도약 속도는 줄었지만 도약 각도를 크게 하여 체공시간을 확보하였습니다. 도약 각도를 30도 수준으로 올리면서 도약 속도를 늘려보세요.'
+            elif record_difference is not None and record_difference < 0:
                 action = ('하강에서 발이 떨어질 때까지 밀어내는 동작을 이어가며, 다음 시도의 속도와 기록이 함께 바뀌는지 확인하세요.'
                           if speed['difference'] < 0 else
                           '속도는 더 높게 추정됐지만 기록은 낮았습니다. 속도만 높이려 하지 말고 공중·착지 동작을 함께 확인하세요.')
-            elif (speed['difference'] < 0 and record_difference is not None and record_difference > 0
-                  and angle and not angle.get('small') and angle['difference'] > 0):
-                action = '도약 속도는 줄었지만 도약 각도를 크게 하여 체공시간을 확보하였습니다. 도약 각도를 30도 수준으로 올리면서 도약 속도를 늘려보세요.'
             else:
                 action = '이번 밀어내기 동작을 다시 재현해 속도와 기록이 함께 유지되는지 확인하세요.'
         else:

@@ -174,12 +174,17 @@ def _takeoff_rows(speed_diff, angle_diff, angle_small):
     ]
 
 
-def test_slower_speed_but_bigger_angle_and_higher_record_tells_to_raise_angle_and_speed():
+ANGLE_UP_ACTION = ('도약 속도는 줄었지만 도약 각도를 크게 하여 체공시간을 확보하였습니다. '
+                   '도약 각도를 30도 수준으로 올리면서 도약 속도를 늘려보세요.')
+
+
+@pytest.mark.parametrize('record_difference', [14, -14, 0, None])
+def test_slower_speed_with_bigger_angle_always_tells_to_raise_angle_and_speed(record_difference):
+    """속도↓(not small) + 각도↑(not small)이면 기록 증감과 무관하게 새 멘트가 나온다."""
     rows = _takeoff_rows(speed_diff=-.18, angle_diff=3.6, angle_small=False)
-    result = module().highlights(rows, record_difference=14)
+    result = module().highlights(rows, record_difference=record_difference)
     takeoff = next(x for x in result if x['phase'] == 'takeoff')
-    assert takeoff['action'] == ('도약 속도는 줄었지만 도약 각도를 크게 하여 체공시간을 확보하였습니다. '
-                                 '도약 각도를 30도 수준으로 올리면서 도약 속도를 늘려보세요.')
+    assert takeoff['action'] == ANGLE_UP_ACTION
 
 
 def test_slower_speed_higher_record_but_flat_angle_keeps_existing_action():
@@ -189,6 +194,15 @@ def test_slower_speed_higher_record_but_flat_angle_keeps_existing_action():
     assert takeoff['action'] == '이번 밀어내기 동작을 다시 재현해 속도와 기록이 함께 유지되는지 확인하세요.'
 
 
+def test_slower_speed_with_lower_record_and_flat_angle_keeps_existing_push_action():
+    """각도 변화가 미미하면 기록 감소 시 기존 '하강에서...' 멘트로 떨어진다."""
+    rows = _takeoff_rows(speed_diff=-.18, angle_diff=0.1, angle_small=True)
+    result = module().highlights(rows, record_difference=-14)
+    takeoff = next(x for x in result if x['phase'] == 'takeoff')
+    assert takeoff['action'] == ('하강에서 발이 떨어질 때까지 밀어내는 동작을 이어가며, '
+                                 '다음 시도의 속도와 기록이 함께 바뀌는지 확인하세요.')
+
+
 def test_faster_speed_and_higher_record_keeps_existing_reproduce_action():
     rows = _takeoff_rows(speed_diff=.2, angle_diff=3.6, angle_small=False)
     result = module().highlights(rows, record_difference=14)
@@ -196,12 +210,12 @@ def test_faster_speed_and_higher_record_keeps_existing_reproduce_action():
     assert takeoff['action'] == '이번 밀어내기 동작을 다시 재현해 속도와 기록이 함께 유지되는지 확인하세요.'
 
 
-def test_slower_speed_with_lower_record_keeps_existing_push_action():
-    rows = _takeoff_rows(speed_diff=-.18, angle_diff=3.6, angle_small=False)
+def test_faster_speed_with_lower_record_keeps_existing_speed_warning():
+    rows = _takeoff_rows(speed_diff=.2, angle_diff=3.6, angle_small=False)
     result = module().highlights(rows, record_difference=-14)
     takeoff = next(x for x in result if x['phase'] == 'takeoff')
-    assert takeoff['action'] == ('하강에서 발이 떨어질 때까지 밀어내는 동작을 이어가며, '
-                                 '다음 시도의 속도와 기록이 함께 바뀌는지 확인하세요.')
+    assert takeoff['action'] == ('속도는 더 높게 추정됐지만 기록은 낮았습니다. '
+                                 '속도만 높이려 하지 말고 공중·착지 동작을 함께 확인하세요.')
 
 
 def test_more_speed_with_a_lower_record_is_not_automatically_praised():
