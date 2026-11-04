@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JumpCoach — 제자리멀리뛰기 분석</title>
+<style>
+  :root { --bg:#0f1620; --card:#18222f; --line:#26323f; --ink:#e8eef5; --muted:#9fb0c0; --accent:#39d98a; --accent2:#4aa3ff; --warn:#ffcc4d; --bad:#ff6b6b; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Segoe UI",system-ui,sans-serif; background:var(--bg); color:var(--ink); }
+  .wrap { max-width:920px; margin:0 auto; padding:22px 18px 60px; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; }
+  h1 { font-size:1.45rem; margin:0; }
+  .sub { color:var(--muted); margin:4px 0 18px; font-size:.92rem; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:18px; }
+  details.guide { background:#141d28; border:1px solid var(--line); border-radius:12px; padding:10px 16px; margin-bottom:16px; }
+  details.guide summary { cursor:pointer; font-weight:600; color:var(--accent2); }
+  details.guide ul { margin:10px 0 4px; padding-left:20px; line-height:1.7; font-size:.9rem; color:var(--ink); }
+  .drop { border:2px dashed var(--line); border-radius:12px; padding:24px; text-align:center; cursor:pointer; transition:.15s; }
+  .drop:hover, .drop.over { border-color:var(--accent2); background:#1b2735; }
+  .drop input { display:none; }
+  .fname { margin-top:8px; color:var(--accent2); font-size:.9rem; word-break:break-all; }
+  .preview { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .preview video { width:150px; height:auto; border-radius:8px; border:1px solid var(--line); background:#000; }
+  .row { display:flex; gap:12px; align-items:center; margin-top:16px; }
+  button { background:var(--accent); color:#08130c; border:0; border-radius:10px; padding:12px 22px; font-size:1rem; font-weight:700; cursor:pointer; }
+  button:disabled { opacity:.55; cursor:not-allowed; }
+  button.ghost { background:transparent; color:var(--muted); border:1px solid var(--line); padding:7px 14px; font-size:.82rem; font-weight:500; }
+  button.again { background:var(--accent2); color:#04121f; margin-top:18px; }
+  .spinner { width:16px; height:16px; border:3px solid #ffffff55; border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; display:inline-block; vertical-align:middle; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .hidden { display:none; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; }
+  .metric { background:#121b26; border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .metric .k { color:var(--muted); font-size:.78rem; }
+  .metric .v { font-size:1.3rem; font-weight:700; margin-top:4px; }
+  .metric .u { color:var(--muted); font-size:.8rem; font-weight:400; }
+  .core-metrics { margin:18px 0; grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .core-metrics .v { font-size:1.6rem; }
+  .personal-feedback { margin:20px 0; padding:16px; background:#121b26; border:1px solid var(--line); border-radius:10px; }
+  .personal-feedback h3 { margin-top:0; }
+  .personal-feedback .insight { margin:14px 0; padding-top:12px; border-top:1px solid var(--line); line-height:1.65; }
+  .personal-feedback .insight p { margin:5px 0; }
+  .personal-feedback .insight p:last-child { color:var(--accent); }
+  .coaching-summary { margin:20px 0; padding:16px 18px; border-left:3px solid var(--accent); background:#12271f; border-radius:8px; }
+  .coaching-summary h3 { margin:0 0 10px; }
+  .coaching-summary p { margin:8px 0; line-height:1.75; word-break:keep-all; }
+  .personal-feedback > summary { cursor:pointer; font-weight:600; }
+  .compare-grid .core-metrics { grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); }
+  @media(max-width:480px){ .core-metrics .metric { padding:10px 8px; } .core-metrics .v { font-size:1.25rem; } }
+  .badge { display:inline-block; padding:4px 12px; border-radius:999px; font-size:.82rem; font-weight:700; line-height:1.5; }
+  .badge.ok { background:#143726; color:var(--accent); }
+  .badge.bad { background:#3a1a1a; color:var(--bad); }
+  ul.cues { margin:6px 0 0; padding-left:0; list-style:none; }
+  ul.cues li { background:#121b26; border-left:3px solid var(--accent2); border-radius:6px; padding:10px 12px; margin-bottom:8px; line-height:1.5; font-size:.92rem; }
+  .warn { background:#332a12; border:1px solid #5a4a1e; color:var(--warn); border-radius:10px; padding:10px 12px; margin-bottom:10px; font-size:.88rem; }
+  .err { background:#3a1a1a; border:1px solid #5a2222; color:var(--bad); border-radius:10px; padding:14px; font-size:.95rem; line-height:1.5; }
+  video.vid, .plots { width:100%; border-radius:10px; border:1px solid var(--line); margin-top:6px; background:#000; }
+  h3 { margin:18px 0 8px; font-size:1.05rem; }
+  .hint { color:var(--muted); font-size:.82rem; margin-top:8px; }
+  .speeds { display:flex; gap:6px; align-items:center; margin-top:6px; }
+  .spd { background:transparent; color:var(--muted); border:1px solid var(--line); border-radius:8px; padding:4px 10px; font-size:.8rem; font-weight:600; cursor:pointer; }
+  .spd.on { color:var(--ink); border-color:var(--accent2); background:#1b2735; }
+  .shot { background:#121b26; border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:12px; }
+  .shotcap { font-weight:700; margin-bottom:6px; }
+  .shotimg { width:100%; border-radius:8px; border:1px solid var(--line); background:#000; }
+  .comment { margin:12px 0 6px; font-size:.95rem; line-height:1.7; word-break:keep-all; }
+  details.data { margin-top:14px; }
+  details.data > summary { cursor:pointer; color:var(--muted); font-size:.82rem; }
+  .phase-shots { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
+  .phase { margin-top:20px; padding-top:2px; border-top:1px solid var(--line); }
+  .shot .grid { margin-top:10px; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:6px; }
+  .shot .metric { padding:8px; }
+  .shot .metric .v { font-size:1rem; }
+  details.clip { margin-top:12px; }
+  details.clip > summary { cursor:pointer; font-weight:700; padding:12px 0; }
+  table { width:100%; border-collapse:collapse; font-size:.82rem; }
+  th { padding:6px; color:var(--muted); }
+  td { padding:6px; }
+
+</style>
+<link rel="stylesheet" href="/static/personal_history.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><h1>JumpCoach</h1><button id="quit" class="ghost">분석기 끄기</button></div>
+  <p class="sub">한 번의 점프에서, 나의 변화까지.</p>
+  <section class="panel identity">
+    <label for="person">누구의 점프인가요?</label>
+    <div class="identity-row"><select id="person" aria-label="사람 선택"><option value="">이름을 선택하세요</option></select>
+      <input id="personName" placeholder="새 이름 입력" maxlength="60" aria-label="새 이름">
+      <button id="savePerson" class="secondary">이름 저장</button></div>
+    <div class="date-row"><label for="trainingDate">훈련일</label><input id="trainingDate" type="date"></div>
+  </section>
+  <nav class="tabs"><button id="recordTab" class="active">기록하기</button><button id="historyTab">기록 모아보기</button></nav>
+  <div id="notice" role="status" aria-live="polite"></div>
+  <section id="recordView">
+    <div class="panel">
+      <div class="drop" id="drop"><div>영상을 선택하거나 끌어다 놓으세요</div><div class="hint">한 영상에 한 번의 점프 · 최대 5개</div>
+        <input type="file" id="file" accept="video/*" multiple aria-label="점프 영상 선택"></div>
+      <div id="uploadCards"></div>
+      <label class="check"><input type="checkbox" id="ownerConfirm"><span id="ownerText">선택한 사람이 뛴 영상입니다</span></label>
+      <details class="data"><summary>촬영·측정 조건</summary>
+        <div class="field-grid"><label>촬영 위치·방식 이름<input id="cameraSetup" value="측면 고정" maxlength="100"></label>
+          <label>기록 측정 방식<input id="measurementSetup" value="학원 측정" maxlength="100"></label>
+          <label>영상 속도<select id="timeMode"><option value="normal">원래 속도</option><option value="slow">일정한 슬로모션</option><option value="unknown">모르겠음</option></select></label>
+          <label>슬로모션 배율<input id="slowdown" type="number" min="1" max="32" value="4"></label></div>
+        <p class="hint">카메라 위치나 측정 방법이 바뀌면 이름도 바꿔 주세요. 길이 기준은 영상 저장 후 지정할 수 있습니다.</p>
+      </details>
+      <div class="row"><button id="go" disabled>저장하고 분석</button><span id="uploadStatus" class="hint"></span></div>
+      <details class="data"><summary>영상 없이 기록만 남기기</summary><div class="identity-row">
+        <input id="manualRecord" type="number" step="0.1" min="0.1" placeholder="실측 기록 (cm)" aria-label="영상 없는 실측 기록">
+        <select id="manualValidity" aria-label="기록 유효 여부"><option value="valid">유효</option><option value="foul">파울</option></select>
+        <button id="saveRecord" class="secondary">기록 저장</button></div></details>
+    </div>
+    <details class="guide"><summary>촬영 가이드</summary><ul><li>고정된 카메라로 점프 방향의 옆에서 촬영하세요.</li><li>준비부터 착지 후까지 전신과 양쪽 신발이 보이게 담으세요.</li><li>가능하면 밝은 곳에서 60fps 이상으로 촬영하세요.</li></ul></details>
+  </section>
+  <section id="historyView" class="hidden">
+    <div id="historySummary" class="panel"></div>
+    <div class="panel"><div class="topbar"><h2>실측 기록 변화</h2><span class="hint">중앙값 · 최고기록</span></div><div id="recordChart"></div></div>
+    <div class="panel"><div class="topbar"><h2>동작 변화</h2><select id="metricSelect" aria-label="비교할 동작 지표"></select></div><div id="metricChart"></div></div>
+    <div class="panel"><h2>이번에 연습할 것</h2><input id="focus" placeholder="예: 착지 전에 발을 앞으로 보내기" maxlength="200" aria-label="이번 연습 과제">
+      <textarea id="practiceNote" placeholder="실제로 한 연습을 짧게 남기세요" maxlength="4000" aria-label="실제 연습 메모"></textarea>
+      <button id="savePractice" class="secondary">연습 메모 저장</button></div>
+    <div class="panel"><div class="topbar"><h2>저장된 시도</h2><button id="compareSaved" class="secondary" disabled>선택한 시도 비교</button></div><div id="attemptList"></div></div>
+    <details class="panel"><summary>더보기</summary><div class="row"><button id="backup" class="secondary">전체 기록 백업</button><button id="trash" class="ghost">휴지통</button></div><div id="management"></div></details>
+  </section>
+  <section id="detail" class="panel hidden"></section>
+  <div id="result" class="panel hidden"></div>
+</div>
+<script>
+const result = document.getElementById('result');
+function resetForNew(){ if (window.personalReset) window.personalReset(); }
+window.resetForNew = resetForNew;
+const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const resourceUrl = url => typeof url === 'string' && (/^\/out\//.test(url) || /^\/api\/runs\/[a-f0-9]+\/files\/[a-z_]+$/.test(url)) ? esc(url) : '';
+const finite = value => typeof value === 'number' && Number.isFinite(value);
+
+function setSpeed(id, rate, btn){
+  const v = document.getElementById(id);
+  if (v) v.playbackRate = rate;
+  if (btn){ btn.parentNode.querySelectorAll('.spd').forEach(b => b.classList.remove('on')); btn.classList.add('on'); }
+}
+function speedBar(vidId){
+  return `<div class="speeds"><span class="hint" style="margin:0">재생 속도</span>` +
+    [0.25,0.5,1].map(r => `<button class="spd${r===1?' on':''}" onclick="setSpeed('${vidId}',${r},this)">${r}×</button>`).join('') +
+    `</div>`;
+}
+function shotCard(s, m){
+  const imageUrl = s.available ? resourceUrl(s.url) : '';
+  const label = s.key === 'landing' && s.available && !s.reliable && !s.observed ? '착지 후보' : s.label;
+  const frame = finite(s.frame) ? `프레임 ${s.frame}` : '';
+  const time = finite(s.time_s) ? ` · ${s.time_s.toFixed(3)}초` : '';
+  const values = (s.available ? (s.measurements || []) : []).filter(x => {
+    if (['m','cm','m/s'].includes(x.unit) && m.absolute_metrics_reliable !== true) return false;
+    if (s.phase === 'landing' && ['m','cm'].includes(x.unit) && m.landing_contact_reliable !== true) return false;
+    return finite(x.value);
+  });
+  const comment = s.comment || (s.available ? '새로 분석하면 교정 코멘트를 볼 수 있습니다.' : '이 순간을 찾지 못했습니다. 준비 동작과 손발이 모두 보이게 다시 촬영하세요.');
+  return `<article class="shot"><div class="shotcap">${esc(label)}</div>` +
+    (imageUrl ? `<img class="shotimg" src="${imageUrl}" alt="${esc(label)}">` : '') +
+    `<p class="comment">${esc(comment)}</p>` +
+    (s.phase === 'landing' && imageUrl ? '<div class="hint">노랑: 접촉점 · 빨강: 무게중심 · 파랑: 골반</div>' : '') +
+    (s.available && (frame || values.length) ? `<details class="data"><summary>수치 보기</summary><div class="hint">${frame}${time}</div>` +
+      (values.length ? `<div class="grid">${values.map(x => `<div class="metric"><div class="k">${esc(x.label)}</div><div class="v">${esc(x.value)}<span class="u"> ${esc(x.unit)}</span></div></div>`).join('')}</div>` : '') + '</details>' : '') + '</article>';
+}
+function phaseDetails(shots, m){
+  return [['takeoff','도약 · 세 순간'],['mid','공중'],['landing','착지']].map(([key,label]) => {
+    const items = (shots || []).filter(s => s.phase === key);
+    return `<section class="phase"><h3>${label}</h3>` +
+      (items.length ? `<div class="phase-shots">${items.map(s => shotCard(s, m)).join('')}</div>` : '<p class="comment">이 구간을 확인하지 못했습니다. 준비부터 착지까지 담아 다시 촬영하세요.</p>') + '</section>';
+  }).join('');
+}
+const M = [
+  ['takeoff_speed_mps','도약 속도','m/s'],
+  ['takeoff_angle_deg','도약 각도','°'],
+  ['flight_time_s','체공 시간','s'],
+];
+function card(m, key, label, unit){
+  const display = m.metric_display?.[key];
+  const blocked = display ? !display.displayable : (key === 'takeoff_speed_mps' && m.absolute_metrics_reliable !== true) ||
+    (key === 'flight_time_s' && m.slowmo_detected && m.absolute_metrics_reliable !== true) ||
+    (key === 'takeoff_angle_deg' && m.events_reliable === false);
+  if (blocked || !finite(m[key])) return `<div class="metric"><div class="k">${esc(label)}</div><div class="v" style="font-size:21px">계산 불가</div><div class="hint">${esc(display?.reason || (key==='takeoff_speed_mps'?'길이·시간 기준 확인':key==='flight_time_s'?'이륙·착지와 시간 설정 확인':'이륙 궤적 확인'))}</div></div>`;
+  const digits=key==='flight_time_s'?3:key==='takeoff_speed_mps'?2:1;
+  return `<div class="metric"><div class="k">${display?.estimated?'추정 ':''}${esc(label)}</div><div class="v">${m[key].toFixed(digits)}<span class="u"> ${esc(unit)}</span></div></div>`;
+}
+function coreMetrics(m){
+  return '<div class="grid core-metrics" aria-label="도약 속도·도약 각도·체공 시간">'+M.map(x=>card(m||{},...x)).join('')+'</div>';
+}
+function coachingSummary(data, f){
+  if(!data)return '';
+  const lines=f?.summary?.length?f.summary:(data.coaching_summary||[]);
+  if(!lines.length)return '';
+  const r=f?.reference;
+  const reference=r?`<div class="hint">${finite(r.measured_distance_cm)?esc(r.measured_distance_cm)+'cm':'기록 모름'} · ${esc(r.performed_on)} · ${esc(r.attempt_no)}번째와 비교</div>`:'';
+  return `<section class="coaching-summary" aria-label="이번 점프 코칭"><h3>이번 점프 코칭</h3>${reference}`+lines.slice(0,3).map(line=>`<p>${esc(line)}</p>`).join('')+'</section>';
+}
+function personalFeedback(f){
+  if(!f)return '';
+  const r=f.reference, c=f.current, record=x=>finite(x.measured_distance_cm)?`${x.measured_distance_cm}cm`:'기록 모름';
+  const fmt=(v,u)=>v.toFixed(u==='s'?3:u==='m/s'?2:1);
+  return `<details class="personal-feedback"><summary>${esc(record(r))} 시도와 달라진 점 자세히 보기</summary><div class="hint">영상 추정 비교 · ${esc(r.performed_on)} · ${r.attempt_no}번째 · ${esc(record(r))} → 이번 ${esc(record(c))}</div>`+
+    f.highlights.map(h=>`<div class="insight"><strong>${esc(h.label)}</strong><p>${esc(h.text)}</p><p>${esc(h.action)}</p></div>`).join('')+
+    `<details class="data"><summary>전체 동작 차이</summary><div style="overflow-x:auto"><table><tr><th>지표</th><th>비교 기준</th><th>이번</th><th>차이</th></tr>`+
+    f.rows.map(r=>`<tr><td>${esc(r.label)}</td><td>${fmt(r.before,r.unit)} ${esc(r.unit)}</td><td>${fmt(r.after,r.unit)} ${esc(r.unit)}</td><td>${r.difference>0?'+':''}${fmt(r.difference,r.unit)} ${esc(r.unit==='%'?'%p':r.unit)}</td></tr>`).join('')+
+    `</table></div><p class="hint">${esc(f.note)}</p></details></details>`;
+}
+function media(data, id, metrics){
+  const video = resourceUrl(data.video_url), plots = resourceUrl(data.plots_url);
+  return (video ? `<h3>분석 영상</h3><video class="vid" id="${id}" src="${video}" controls muted></video>${speedBar(id)}` : '') +
+    (plots ? '<section class="phase"><h3>동작 추적 그래프</h3><p class="hint">왼쪽 위: 관절각 · 오른쪽 위: 팔 각도 · 왼쪽 아래: 무게중심 궤적 · 오른쪽 아래: 무게중심 이동<br>초록 점선: 이륙 · 회색 점선: 최고점 · 주황 점선: 첫 착지 · 시간축은 원본 영상 기준</p>'+`<img class="plots" src="${plots}" alt="관절각·팔 각도·무게중심의 시간별 변화와 이륙·최고점·착지 시점"></section>` : '');
+}
+function showResult(data){
+  const m = data.metrics || {};
+  result.className = 'panel';
+  result.innerHTML = '<h2 style="margin-top:0">분석 결과</h2>' +
+    coreMetrics(m) + coachingSummary(data, data.personal_feedback) + phaseDetails(data.shots, m) + media(data, 'annVid', m) +
+    '<button class="again" onclick="resetForNew()">＋ 새 영상 분석</button>';
+  result.scrollIntoView({ behavior:'smooth' });
+}
+function showCompare(rep){
+  result.className = 'panel';
+  let html = '<h2 style="margin-top:0">영상 비교</h2>';
+  if (rep.message) html += `<p class="comment">${esc(rep.message)}</p>`;
+  const rows = rep.rows || [];
+  rows.forEach((r, i) => {
+    if (!r.ok){ html += `<div class="err">${esc(r.label)} · 분석 실패: ${esc(r.reason)}</div>`; return; }
+    html += `<details class="clip"${i === 0 ? ' open' : ''}><summary>${esc(r.label)}</summary>` +
+      coreMetrics({...r,takeoff_speed_mps:r.takeoff_speed}) + coachingSummary(r, r.personal_feedback) + phaseDetails(r.shots, r) + media(r, 'cmpVid'+i) + '</details>';
+  });
+  if (rows.some(r => r.ok)) {
+    html += '<details class="data"><summary>수치 비교</summary><div style="overflow-x:auto"><table><tr><th>영상</th><th>도약 속도</th><th>도약 각도</th><th>체공 시간</th></tr>';
+    rows.filter(r => r.ok).forEach(r => {
+      html += `<tr><td>${esc(r.label)}</td>` + [[r.takeoff_speed,'m/s'],[r.takeoff_angle_deg,'°'],[r.flight_time_s,'s']].map(([v,u]) => `<td>${finite(v) ? esc(v)+' '+u : '—'}</td>`).join('') + '</tr>';
+    });
+    html += '</table></div></details>';
+  }
+  html += '<button class="again" onclick="resetForNew()">＋ 새로 분석</button>';
+  result.innerHTML = html;
+  result.scrollIntoView({ behavior:'smooth' });
+}
+
+</script>
+<script src="/static/personal_history.js" defer></script>
+</body>
+</html>

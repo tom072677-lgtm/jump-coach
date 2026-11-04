@@ -1,0 +1,36 @@
+﻿# --- 백업/작업본 ---
+work/
+
+# --- 업로드/결과 영상 ---
+*.mp4
+*.mov
+*.avi
+*.mkv
+
+# --- 생성된 이미지 결과물 ---
+*.png
+*.jpg
+*.jpeg
+
+# --- 분석 결과 산출물 (summary.json 예시는 남기고 싶으면 아래 한 줄 지우세요) ---
+# *.json
+
+# --- 업로드 디렉터리 (web_app이 UUID 폴더를 만드는 경우) ---
+uploads/
+outputs/
+static/uploads/
+
+# --- 파이썬 ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# --- OS/에디터 ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
